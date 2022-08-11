@@ -1,16 +1,22 @@
 package wekaguiapplication;
 
+import java.awt.BorderLayout;
 import java.util.Random;
+import javax.swing.JFrame;
 import weka.classifiers.Evaluation;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils.DataSource;
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.NaiveBayes;
+import weka.classifiers.evaluation.ThresholdCurve;
 import weka.classifiers.trees.J48;
 import weka.classifiers.trees.RandomTree;
 import weka.classifiers.trees.RandomForest;
 import weka.classifiers.trees.REPTree;
 import weka.classifiers.trees.LMT;
+import weka.core.Utils;
+import weka.gui.visualize.PlotData2D;
+import weka.gui.visualize.ThresholdVisualizePanel;
 
 public class EvaluationCalculating {
 
@@ -19,13 +25,13 @@ public class EvaluationCalculating {
     public String summString;
     public String classString;
     public String matrixString;
-    String FileLocation= gui.FileLocation;
-    
+    String FileLocation = gui.FileLocation;
+    public static final JFrame jf = new JFrame();
+
     private int default_fold = 10;
+
     public void RFTree() throws Exception {
 
-        System.out.println(FileLocation);
-        
         DataSource source = new DataSource(FileLocation);
         Instances dataSet = source.getDataSet();
 
@@ -37,10 +43,14 @@ public class EvaluationCalculating {
         System.out.println("----------------------------------------------");
 
         Evaluation eval = new Evaluation(dataSet);
+        
+
         Random rand = new Random(1);
 
-        int folds = default_fold; 
+        int folds = default_fold;
+
         folds = gui.fold_count;
+
         DataSource source2 = new DataSource(FileLocation);
 
         Instances testDataSet = source2.getDataSet();
@@ -48,19 +58,39 @@ public class EvaluationCalculating {
         testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
 
         eval.crossValidateModel(RF, testDataSet, folds, rand);
-        
+
         nameString = RF.toString();
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();
         matrixString = eval.toMatrixString();
-                
-        
-        //gui.jTextArea1.append(eval.toSummaryString("=== Summary ===\n", false));
+
         System.out.println(eval.toSummaryString("=== Summary ===\n", false));
         System.out.println(eval.toClassDetailsString());
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
+
+        
+        ThresholdCurve tc = new ThresholdCurve();
+        int classIndex = 0; // ROC for the 1st class label
+        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+        
+        PlotData2D plotdata = new PlotData2D(curve);
+        plotdata.setPlotName(curve.relationName());
+        plotdata.addInstanceNumberAttribute();
+
+        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+        tvp.setROCString("(Area under ROC = "+ Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+        tvp.setName(curve.relationName());
+        tvp.addPlot(plotdata);
+        
+        jf.setName("WEKA ROC: " + tvp.getName());
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        
+
     }
 
     public void RTTree() throws Exception {
@@ -77,7 +107,7 @@ public class EvaluationCalculating {
         Evaluation eval = new Evaluation(dataSet);
         Random rand = new Random(1);
 
-        int folds = default_fold; 
+        int folds = default_fold;
         folds = gui.fold_count;
 
         DataSource source2 = new DataSource(FileLocation);
@@ -92,13 +122,32 @@ public class EvaluationCalculating {
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();
         matrixString = eval.toMatrixString();
-        
+
         System.out.println(eval.toSummaryString("=== Summary ===\n", false));
         System.out.println(eval.toClassDetailsString());
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
 
+        ThresholdCurve tc = new ThresholdCurve();
+        int classIndex = 0; // ROC for the 1st class label
+        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+        
+        PlotData2D plotdata = new PlotData2D(curve);
+        plotdata.setPlotName(curve.relationName());
+        plotdata.addInstanceNumberAttribute();
+
+        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+        tvp.setROCString("(Area under ROC = "+ Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+        tvp.setName(curve.relationName());
+        tvp.addPlot(plotdata);
+        
+        jf.setName("WEKA ROC: " + tvp.getName());
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        
     }
 
     public void J48Tree() throws Exception {
@@ -116,7 +165,7 @@ public class EvaluationCalculating {
         Evaluation eval = new Evaluation(dataSet);
         Random rand = new Random(1);
 
-        int folds = default_fold; 
+        int folds = default_fold;
         folds = gui.fold_count;
 
         DataSource source2 = new DataSource(FileLocation);
@@ -127,16 +176,35 @@ public class EvaluationCalculating {
 
         eval.crossValidateModel(j48tree, testDataSet, folds, rand);
 
-         nameString = j48tree.toString();
+        nameString = j48tree.toString();
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();
         matrixString = eval.toMatrixString();
-        
+
         System.out.println(eval.toSummaryString("=== Summary ===\n", false));
         System.out.println(eval.toClassDetailsString());
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
+        
+        ThresholdCurve tc = new ThresholdCurve();
+        int classIndex = 0; // ROC for the 1st class label
+        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+        
+        PlotData2D plotdata = new PlotData2D(curve);
+        plotdata.setPlotName(curve.relationName());
+        plotdata.addInstanceNumberAttribute();
+
+        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+        tvp.setROCString("(Area under ROC = "+ Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+        tvp.setName(curve.relationName());
+        tvp.addPlot(plotdata);
+        
+        jf.setName("WEKA ROC: " + tvp.getName());
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     }
 
     public void BNBayes() throws Exception {
@@ -154,7 +222,7 @@ public class EvaluationCalculating {
         Evaluation eval = new Evaluation(dataSet);
         Random rand = new Random(1);
 
-        int folds = default_fold; 
+        int folds = default_fold;
         folds = gui.fold_count;
 
         DataSource source2 = new DataSource(FileLocation);
@@ -164,17 +232,36 @@ public class EvaluationCalculating {
         testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
 
         eval.crossValidateModel(BN, testDataSet, folds, rand);
-         
+
         nameString = BN.toString();
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();
         matrixString = eval.toMatrixString();
-        
+
         System.out.println(eval.toSummaryString("=== Summary ===\n", false));
         System.out.println(eval.toClassDetailsString());
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
+        
+        ThresholdCurve tc = new ThresholdCurve();
+        int classIndex = 0; // ROC for the 1st class label
+        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+        
+        PlotData2D plotdata = new PlotData2D(curve);
+        plotdata.setPlotName(curve.relationName());
+        plotdata.addInstanceNumberAttribute();
+
+        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+        tvp.setROCString("(Area under ROC = "+ Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+        tvp.setName(curve.relationName());
+        tvp.addPlot(plotdata);
+        
+        jf.setName("WEKA ROC: " + tvp.getName());
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     }
 
     public void NBBayes() throws Exception {
@@ -192,7 +279,7 @@ public class EvaluationCalculating {
         Evaluation eval = new Evaluation(dataSet);
         Random rand = new Random(1);
 
-        int folds = default_fold; 
+        int folds = default_fold;
         folds = gui.fold_count;
 
         DataSource source2 = new DataSource(FileLocation);
@@ -207,13 +294,31 @@ public class EvaluationCalculating {
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();
         matrixString = eval.toMatrixString();
-        
+
         System.out.println(eval.toSummaryString("=== Summary ===\n", false));
         System.out.println(eval.toClassDetailsString());
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
 
+        ThresholdCurve tc = new ThresholdCurve();
+        int classIndex = 0; // ROC for the 1st class label
+        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+        
+        PlotData2D plotdata = new PlotData2D(curve);
+        plotdata.setPlotName(curve.relationName());
+        plotdata.addInstanceNumberAttribute();
+
+        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+        tvp.setROCString("(Area under ROC = "+ Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+        tvp.setName(curve.relationName());
+        tvp.addPlot(plotdata);
+        
+        jf.setName("WEKA ROC: " + tvp.getName());
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     }
 
     public void LMTTree() throws Exception {
@@ -231,10 +336,9 @@ public class EvaluationCalculating {
         Evaluation eval = new Evaluation(dataSet);
         Random rand = new Random(1);
 
-        int folds = default_fold; 
+        int folds = default_fold;
         folds = gui.fold_count;
-        System.out.println("fooooooooooooooooooooooooooooolds"+folds);
-        
+        System.out.println("fooooooooooooooooooooooooooooolds" + folds);
 
         DataSource source2 = new DataSource(FileLocation);
 
@@ -244,16 +348,35 @@ public class EvaluationCalculating {
 
         eval.crossValidateModel(LMTTree, testDataSet, folds, rand);
 
-         nameString = LMTTree.toString();
+        nameString = LMTTree.toString();
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();
         matrixString = eval.toMatrixString();
-        
+
         System.out.println(eval.toSummaryString("=== Summary ===\n", false));
         System.out.println(eval.toClassDetailsString());
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
+        
+        ThresholdCurve tc = new ThresholdCurve();
+        int classIndex = 0; // ROC for the 1st class label
+        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+        
+        PlotData2D plotdata = new PlotData2D(curve);
+        plotdata.setPlotName(curve.relationName());
+        plotdata.addInstanceNumberAttribute();
+
+        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+        tvp.setROCString("(Area under ROC = "+ Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+        tvp.setName(curve.relationName());
+        tvp.addPlot(plotdata);
+        
+        jf.setName("WEKA ROC: " + tvp.getName());
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
     }
 
@@ -284,16 +407,35 @@ public class EvaluationCalculating {
 
         eval.crossValidateModel(REP, testDataSet, folds, rand);
 
-         nameString = REP.toString();
+        nameString = REP.toString();
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();
         matrixString = eval.toMatrixString();
-        
+
         System.out.println(eval.toSummaryString("=== Summary ===\n", false));
         System.out.println(eval.toClassDetailsString());
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
+        
+        ThresholdCurve tc = new ThresholdCurve();
+        int classIndex = 0; // ROC for the 1st class label
+        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+        
+        PlotData2D plotdata = new PlotData2D(curve);
+        plotdata.setPlotName(curve.relationName());
+        plotdata.addInstanceNumberAttribute();
+
+        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+        tvp.setROCString("(Area under ROC = "+ Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+        tvp.setName(curve.relationName());
+        tvp.addPlot(plotdata);
+        
+        jf.setName("WEKA ROC: " + tvp.getName());
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
     }
 }

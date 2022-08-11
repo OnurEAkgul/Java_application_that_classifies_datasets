@@ -1,12 +1,17 @@
 package wekaguiapplication;
 
+import java.awt.BorderLayout;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import weka.classifiers.evaluation.ThresholdCurve;
 import weka.classifiers.trees.RandomForest;
+import weka.core.Utils;
+import weka.gui.visualize.ThresholdVisualizePanel;
 
 public class WekaGui extends javax.swing.JFrame {
 
@@ -18,7 +23,6 @@ public class WekaGui extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
-        jDesktopPane1 = new javax.swing.JDesktopPane();
         jTabbedPane1 = new javax.swing.JTabbedPane();
         jPanel1 = new javax.swing.JPanel();
         jButton2 = new javax.swing.JButton();
@@ -29,6 +33,9 @@ public class WekaGui extends javax.swing.JFrame {
         jScrollPane1 = new javax.swing.JScrollPane();
         jTextArea1 = new javax.swing.JTextArea();
         txt_formatted_folds = new javax.swing.JFormattedTextField();
+        bttn_Visualiser = new javax.swing.JButton();
+        jLabel1 = new javax.swing.JLabel();
+        jLabel2 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -71,7 +78,7 @@ public class WekaGui extends javax.swing.JFrame {
 
         jComboBox1.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "NaiveBayes", "BayesNet", "J48", "LMT", "RandomForest", "RandomTree", "REPTree" }));
 
-        jButton1.setText("jButton1");
+        jButton1.setText("Run Classifier");
         jButton1.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jButton1ActionPerformed(evt);
@@ -88,22 +95,32 @@ public class WekaGui extends javax.swing.JFrame {
         txt_formatted_folds.setFormatterFactory(new javax.swing.text.DefaultFormatterFactory(new javax.swing.text.NumberFormatter(new java.text.DecimalFormat("#0"))));
         txt_formatted_folds.setText("10");
 
+        bttn_Visualiser.setText("Show Visualiser");
+        bttn_Visualiser.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                bttn_VisualiserActionPerformed(evt);
+            }
+        });
+
+        jLabel1.setText("Enter Folds");
+
+        jLabel2.setText("Select Classifier");
+
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel2Layout.createSequentialGroup()
+                .addGap(17, 17, 17)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(jPanel2Layout.createSequentialGroup()
-                        .addGap(19, 19, 19)
-                        .addComponent(jComboBox1, javax.swing.GroupLayout.PREFERRED_SIZE, 149, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(jPanel2Layout.createSequentialGroup()
-                        .addGap(42, 42, 42)
-                        .addComponent(jButton1))
-                    .addGroup(jPanel2Layout.createSequentialGroup()
-                        .addGap(17, 17, 17)
-                        .addComponent(txt_formatted_folds, javax.swing.GroupLayout.PREFERRED_SIZE, 111, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addGap(126, 126, 126)
+                    .addComponent(bttn_Visualiser, javax.swing.GroupLayout.PREFERRED_SIZE, 164, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addComponent(jButton1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(txt_formatted_folds)
+                        .addComponent(jComboBox1, 0, 164, Short.MAX_VALUE))
+                    .addComponent(jLabel1)
+                    .addComponent(jLabel2))
+                .addGap(113, 113, 113)
                 .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 679, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap(27, Short.MAX_VALUE))
         );
@@ -112,97 +129,87 @@ public class WekaGui extends javax.swing.JFrame {
             .addGroup(jPanel2Layout.createSequentialGroup()
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel2Layout.createSequentialGroup()
-                        .addGap(75, 75, 75)
+                        .addGap(47, 47, 47)
+                        .addComponent(jLabel2)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                         .addComponent(jComboBox1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addGap(18, 18, 18)
+                        .addComponent(jLabel1)
+                        .addGap(3, 3, 3)
                         .addComponent(txt_formatted_folds, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addGap(62, 62, 62)
-                        .addComponent(jButton1))
+                        .addGap(43, 43, 43)
+                        .addComponent(jButton1)
+                        .addGap(18, 18, 18)
+                        .addComponent(bttn_Visualiser))
                     .addGroup(jPanel2Layout.createSequentialGroup()
                         .addContainerGap()
                         .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 466, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addContainerGap(36, Short.MAX_VALUE))
         );
 
         jTabbedPane1.addTab("Classify", jPanel2);
-
-        jDesktopPane1.setLayer(jTabbedPane1, javax.swing.JLayeredPane.DEFAULT_LAYER);
-
-        javax.swing.GroupLayout jDesktopPane1Layout = new javax.swing.GroupLayout(jDesktopPane1);
-        jDesktopPane1.setLayout(jDesktopPane1Layout);
-        jDesktopPane1Layout.setHorizontalGroup(
-            jDesktopPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jTabbedPane1)
-        );
-        jDesktopPane1Layout.setVerticalGroup(
-            jDesktopPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jDesktopPane1Layout.createSequentialGroup()
-                .addGap(34, 34, 34)
-                .addComponent(jTabbedPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 541, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(124, Short.MAX_VALUE))
-        );
-
-        jTabbedPane1.getAccessibleContext().setAccessibleName("TabbedPane");
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addComponent(jDesktopPane1)
-                .addContainerGap())
+                .addGap(3, 3, 3)
+                .addComponent(jTabbedPane1)
+                .addGap(3, 3, 3))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addComponent(jDesktopPane1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(0, 268, Short.MAX_VALUE))
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addComponent(jTabbedPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 541, javax.swing.GroupLayout.PREFERRED_SIZE))
         );
+
+        jTabbedPane1.getAccessibleContext().setAccessibleName("TabbedPane");
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
-
+ 
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
-
+EvaluationCalculating calculate = new EvaluationCalculating(); 
         int number= Integer.parseInt(txt_formatted_folds.getText());
 
         fold_count=number;
-        
+
         jTextArea1.setText("");
-        EvaluationCalculating calculate = new EvaluationCalculating();
 
         try {
 
             if (jComboBox1.getSelectedItem().equals("RandomForest")) {
                 System.out.println("RandomForest");
                 calculate.RFTree();
-            } 
-            
+            }
+
             else if (jComboBox1.getSelectedItem().equals("BayesNet")) {
                 System.out.println("BayesNet");
                 calculate.BNBayes();
-            } 
-            
+            }
+
             else if (jComboBox1.getSelectedItem().equals("NaiveBayes")) {
                 System.out.println("NaiveBayes");
                 calculate.NBBayes();
             }
-            
+
             else if (jComboBox1.getSelectedItem().equals("J48")) {
                 System.out.println("J48");
                 calculate.J48Tree();
-            } 
-            
+            }
+
             else if (jComboBox1.getSelectedItem().equals("LMT")) {
                 System.out.println("LMT");
                 calculate.LMTTree();
-            } 
-            
+            }
+
             else if (jComboBox1.getSelectedItem().equals("REPTree")) {
                 System.out.println("REPTree");
                 calculate.REP_Tree();
-            } 
-            
+            }
+
             else if (jComboBox1.getSelectedItem().equals("RandomTree")) {
                 System.out.println("RandomTree");
                 calculate.RTTree();
@@ -212,16 +219,18 @@ public class WekaGui extends javax.swing.JFrame {
 
         }
         jTextArea1.append(calculate.nameString);
-         jTextArea1.append("\n");
+        jTextArea1.append("\n");
         jTextArea1.append(calculate.summString);
-         jTextArea1.append("\n");
+        jTextArea1.append("\n");
         jTextArea1.append(calculate.classString);
         jTextArea1.append("\n");
         jTextArea1.append(calculate.matrixString);
-
-
     }//GEN-LAST:event_jButton1ActionPerformed
-        public static String FileLocation;
+
+    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_jButton3ActionPerformed
+
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
 
         JFileChooser fileChoose = new JFileChooser();
@@ -235,15 +244,21 @@ public class WekaGui extends javax.swing.JFrame {
         if (fileSelectControl == JFileChooser.APPROVE_OPTION) {
             FileLocation = fileChoose.getSelectedFile().getAbsolutePath();
             System.out.println(FileLocation);
-            
-            //FileLocation=("milknew.arff");
+
+            FileLocation=("milknew.arff");
         }
     }//GEN-LAST:event_jButton2ActionPerformed
 
-    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
-        // TODO add your handling code here:
-    }//GEN-LAST:event_jButton3ActionPerformed
-    
+    private void bttn_VisualiserActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_bttn_VisualiserActionPerformed
+       
+        EvaluationCalculating calc = new EvaluationCalculating();
+                
+        calc.jf.setVisible(true);
+        calc.jf.setSize(800, 700);
+    }//GEN-LAST:event_bttn_VisualiserActionPerformed
+
+          
+    public static String FileLocation;    
     public static int fold_count;    
 
     public static void main(String args[]) {
@@ -256,15 +271,17 @@ public class WekaGui extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton bttn_Visualiser;
     public javax.swing.JButton jButton1;
     private javax.swing.JButton jButton2;
     private javax.swing.JButton jButton3;
     public javax.swing.JComboBox<String> jComboBox1;
-    private javax.swing.JDesktopPane jDesktopPane1;
+    private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel2;
     private javax.swing.JPanel jPanel1;
     public javax.swing.JPanel jPanel2;
     public javax.swing.JScrollPane jScrollPane1;
-    private javax.swing.JTabbedPane jTabbedPane1;
+    public javax.swing.JTabbedPane jTabbedPane1;
     public javax.swing.JTextArea jTextArea1;
     private javax.swing.JFormattedTextField txt_formatted_folds;
     // End of variables declaration//GEN-END:variables
