@@ -12,31 +12,29 @@ import weka.classifiers.trees.RandomForest;
 import weka.classifiers.trees.REPTree;
 import weka.classifiers.trees.LMT;
 
+public class NewClass {
 
-public class NewClass{
-    
-    
-    
-    public static void main(String args[]) throws Exception{
-        
-        
-        
+    public static void main(String args[]) throws Exception {
+
+        testClass test = new testClass();
         EvaluationCalculating EC = new EvaluationCalculating();
-        
+
+        test.RFtesting();
+//        test.BNtesting();
+//        test.J48testing();
+//        test.NBtesting();
+//        test.REPtesting();
+//        test.RTtesting();
+//        test.LMTtesting();
         
 //        EC.RFTree();
 //        EC.RTTree();
         //EC.BNBayes();
         //EC.LMTTree();
-        EC.NBBayes();
+        // EC.NBBayes();
 //        EC.REP_Tree();
 //        EC.J48Tree();
-        
-        
-        
-        
-     
+
     }
-    
-    
+
 }
