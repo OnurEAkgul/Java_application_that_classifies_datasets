@@ -19,14 +19,16 @@ public class NewClass {
         testClass test = new testClass();
         EvaluationCalculating EC = new EvaluationCalculating();
 
-        test.RFtesting();
+        test.RFFtesting();
+//        test.getAttributes();
+//        test.RFtesting();
 //        test.BNtesting();
 //        test.J48testing();
 //        test.NBtesting();
 //        test.REPtesting();
 //        test.RTtesting();
 //        test.LMTtesting();
-        
+
 //        EC.RFTree();
 //        EC.RTTree();
         //EC.BNBayes();
@@ -34,7 +36,6 @@ public class NewClass {
         // EC.NBBayes();
 //        EC.REP_Tree();
 //        EC.J48Tree();
-
     }
 
 }

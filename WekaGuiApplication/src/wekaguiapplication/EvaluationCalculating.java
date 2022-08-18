@@ -1,6 +1,12 @@
 package wekaguiapplication;
 
 import java.awt.BorderLayout;
+import weka.filters.AllFilter;
+import weka.filters.MultiFilter;
+import weka.filters.unsupervised.attribute.Normalize;
+import weka.filters.unsupervised.attribute.Remove;
+import weka.filters.unsupervised.attribute.ReplaceMissingValues;
+import java.util.ArrayList;
 import java.util.Random;
 import javax.swing.JFrame;
 import weka.classifiers.Evaluation;
@@ -9,12 +15,14 @@ import weka.core.converters.ConverterUtils.DataSource;
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.NaiveBayes;
 import weka.classifiers.evaluation.ThresholdCurve;
+import weka.classifiers.meta.FilteredClassifier;
 import weka.classifiers.trees.J48;
 import weka.classifiers.trees.RandomTree;
 import weka.classifiers.trees.RandomForest;
 import weka.classifiers.trees.REPTree;
 import weka.classifiers.trees.LMT;
 import weka.core.Utils;
+import weka.filters.supervised.attribute.AttributeSelection;
 import weka.gui.visualize.PlotData2D;
 import weka.gui.visualize.ThresholdVisualizePanel;
 
@@ -30,852 +38,7315 @@ public class EvaluationCalculating {
 
     private int default_fold = 10;
 
+    public static int attribute_size;
+//    public static String attribute_names[] ;
+    public static ArrayList<String> attribute_names = new ArrayList<>();
+
+    public void getAttributes() throws Exception {
+        DataSource source = new DataSource(FileLocation);
+        Instances dataSet = source.getDataSet();
+
+        attribute_size = dataSet.numAttributes();
+//        System.out.println(dataSet.numAttributes());
+//        System.out.println(source.getDataSet());
+        for (int i = 0; i < dataSet.numAttributes(); i++) {
+
+            attribute_names.add(dataSet.attribute(i).name());
+            System.out.println("Attribute name: " + attribute_names.get(i));
+        }
+        System.out.println("Attribute name: " + attribute_names);
+    }
+
     public void RFTree() throws Exception {
 
-        if (gui.bttn_State == 1) {
-            System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
-            System.out.println("bttnstate= " + gui.bttn_State);
-            DataSource source = new DataSource(FileLocation);
-            RandomForest RF = new RandomForest();
+        if (gui.filterState == true) {
 
-            Instances dataSet = source.getDataSet();
+            switch (gui.filterName) {
+                case "Attribute Selection":
+                    if (gui.bttn_State == 0) {
 
-            System.out.println("CROSS VALIDATON");
-            //Instances dataSet = source.getDataSet();
-            dataSet.setClassIndex(dataSet.numAttributes() - 1);
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
 
-            RF.buildClassifier(dataSet);
-            System.out.println(RF);
-            System.out.println("----------------------------------------------");
+                        Instances dataSet = source.getDataSet();
 
-            Evaluation eval = new Evaluation(dataSet);
+                        dataSet.randomize(new java.util.Random(0));
 
-            Random rand = new Random(1);
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            int folds = default_fold;
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            folds = gui.fold_count;
+                        int testSize = dataSet.numInstances() - trainSize;
 
-            DataSource source2 = new DataSource(FileLocation);
+                        Instances train = new Instances(dataSet, 0, trainSize);
 
-            Instances testDataSet = source2.getDataSet();
+                        Instances test = new Instances(dataSet, trainSize, testSize);
 
-            testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
 
-            eval.crossValidateModel(RF, testDataSet, folds, rand);
+                        RandomForest RF = new RandomForest();
 
-            nameString = RF.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
 
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        FC.setFilter(atrSelect);
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        FC.setClassifier(RF);
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        FC.buildClassifier(train);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
 
-        } else if (gui.bttn_State == 0) {
+                        eval.evaluateModel(FC, test);
 
-            System.out.println("bttnstate= " + gui.bttn_State);
-            DataSource source = new DataSource(FileLocation);
-            RandomForest RF = new RandomForest();
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
 
-            Instances dataSet = source.getDataSet();
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
 
-            System.out.println("SPLIT PERCENTAGE ");
-            dataSet.randomize(new java.util.Random(2));
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
 
-            //Random rand = new Random(1);
-            int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
 
-            int testSize = dataSet.numInstances() - trainSize;
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
 
-            Instances train = new Instances(dataSet, 0, trainSize);
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-            Instances test = new Instances(dataSet, trainSize, testSize);
+                    } else if (gui.bttn_State == 1) {
 
-            test.setClassIndex(test.numAttributes() - 1);
-            train.setClassIndex(test.numAttributes() - 1);
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        RandomForest RF = new RandomForest();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            RF.buildClassifier(train);
+                        FC.setFilter(atrSelect);
+                        FC.setClassifier(RF);
 
-            Evaluation eval = new Evaluation(train);
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
 
-            eval.evaluateModel(RF, test);
+                        DataSource source = new DataSource(FileLocation);
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        Instances dataSet = source.getDataSet();
 
-            nameString = RF.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        Evaluation eval = new Evaluation(dataSet);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                        Random rand = new Random(1);
 
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Multi Filter":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("MULTI PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomForest RF = new RandomForest();
+
+                        MultiFilter multi = new MultiFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(multi);
+
+                        FC.setClassifier(RF);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("MULTİ CROSS");
+                        RandomForest RF = new RandomForest();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        MultiFilter multi = new MultiFilter();
+
+                        FC.setFilter(multi);
+                        FC.setClassifier(RF);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+
+                    break;
+                case "Remove":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("REMOVE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomForest RF = new RandomForest();
+
+                        Remove remove = new Remove();
+
+                        String[] options = new String[]{"-R", Integer.toString(gui.list_Attributes.getSelectedIndex())};
+                        remove.setOptions(options);
+                        
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(remove);
+
+                        FC.setClassifier(RF);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("REMOVE CROSS");
+                        RandomForest RF = new RandomForest();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Remove remove = new Remove();
+
+//                        String[] options = new String[]{"-R", Integer.toString(gui.list_Attributes.getSelectedIndex())};
+//                        remove.setOptions(options);
+                        
+                        FC.setFilter(remove);
+                        FC.setClassifier(RF);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+
+                    break;
+                case "Normalize":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("NORMALIZE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomForest RF = new RandomForest();
+
+                        Normalize normalize = new Normalize();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(normalize);
+
+                        FC.setClassifier(RF);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("NORMALIZE CROSS");
+                        RandomForest RF = new RandomForest();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Normalize normalize = new Normalize();
+
+                        FC.setFilter(normalize);
+                        FC.setClassifier(RF);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+
+                    break;
+                case "All Filter":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ALL FILTER PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomForest RF = new RandomForest();
+
+                        AllFilter allfilt = new AllFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(allfilt);
+
+                        FC.setClassifier(RF);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ALL FILTER CROSS");
+                        RandomForest RF = new RandomForest();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AllFilter allfilt = new AllFilter();
+
+                        FC.setFilter(allfilt);
+                        FC.setClassifier(RF);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+
+                    break;
+                case "Replace Missing Values":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("REPLACE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomForest RF = new RandomForest();
+
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(RMV);
+
+                        FC.setClassifier(RF);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("REPLACE CROSS");
+                        RandomForest RF = new RandomForest();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+                        FC.setFilter(RMV);
+                        FC.setClassifier(RF);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+
+                    break;
+
+                default:
+
+            }
+
+        } else {
+            if (gui.bttn_State == 1) {
+
+                //UNFILTERED CROSS
+                System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                System.out.println("bttnstate= " + gui.bttn_State);
+                DataSource source = new DataSource(FileLocation);
+                RandomForest RF = new RandomForest();
+
+                Instances dataSet = source.getDataSet();
+
+                System.out.println("CROSS VALIDATON");
+                //Instances dataSet = source.getDataSet();
+                dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                RF.buildClassifier(dataSet);
+                System.out.println(RF);
+                System.out.println("----------------------------------------------");
+
+                Evaluation eval = new Evaluation(dataSet);
+
+                Random rand = new Random(1);
+
+                int folds = default_fold;
+
+                folds = gui.fold_count;
+
+                DataSource source2 = new DataSource(FileLocation);
+
+                Instances testDataSet = source2.getDataSet();
+
+                testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                eval.crossValidateModel(RF, testDataSet, folds, rand);
+
+                nameString = RF.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+            } else if (gui.bttn_State == 0) {
+
+                //UNFILTERED PERCENTAGE
+                System.out.println("bttnstate= " + gui.bttn_State);
+                DataSource source = new DataSource(FileLocation);
+                RandomForest RF = new RandomForest();
+
+                Instances dataSet = source.getDataSet();
+
+                System.out.println("SPLIT PERCENTAGE ");
+                dataSet.randomize(new java.util.Random(2));
+
+                //Random rand = new Random(1);
+                int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                int testSize = dataSet.numInstances() - trainSize;
+
+                Instances train = new Instances(dataSet, 0, trainSize);
+
+                Instances test = new Instances(dataSet, trainSize, testSize);
+
+                test.setClassIndex(test.numAttributes() - 1);
+                train.setClassIndex(test.numAttributes() - 1);
+
+                RF.buildClassifier(train);
+
+                Evaluation eval = new Evaluation(train);
+
+                eval.evaluateModel(RF, test);
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                nameString = RF.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+            }
         }
     }
 
     public void RTTree() throws Exception {
 
-        if (gui.bttn_State == 1) {
-            System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
-            System.out.println("bttnstate= " + gui.bttn_State);
+        if (gui.filterState == true) {
 
-            DataSource source = new DataSource(FileLocation);
-            Instances dataSet = source.getDataSet();
+            switch (gui.filterName) {
+                case "Attribute Selection":
+                    if (gui.bttn_State == 0) {
 
-            dataSet.setClassIndex(dataSet.numAttributes() - 1);
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
 
-            RandomTree RT = new RandomTree();
-            RT.buildClassifier(dataSet);
-            System.out.println(RT);
-            System.out.println("----------------------------------------------");
-            Evaluation eval = new Evaluation(dataSet);
-            Random rand = new Random(1);
+                        Instances dataSet = source.getDataSet();
 
-            int folds = default_fold;
-            folds = gui.fold_count;
+                        dataSet.randomize(new java.util.Random(0));
 
-            DataSource source2 = new DataSource(FileLocation);
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            Instances testDataSet = source2.getDataSet();
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+                        int testSize = dataSet.numInstances() - trainSize;
 
-            eval.crossValidateModel(RT, testDataSet, folds, rand);
+                        Instances train = new Instances(dataSet, 0, trainSize);
 
-            nameString = RT.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
+                        Instances test = new Instances(dataSet, trainSize, testSize);
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
 
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        RandomTree RT = new RandomTree();
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        } else if (gui.bttn_State == 0) {
+                        FC.setFilter(atrSelect);
 
-            System.out.println("bttnstate= " + gui.bttn_State);
-            DataSource source = new DataSource(FileLocation);
-            RandomTree RT = new RandomTree();
+                        FC.setClassifier(RT);
 
-            Instances dataSet = source.getDataSet();
+                        FC.buildClassifier(train);
 
-            System.out.println("SPLIT PERCENTAGE ");
-            dataSet.randomize(new java.util.Random(0));
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
 
-            //Random rand = new Random(1);
-            int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+                        eval.evaluateModel(FC, test);
 
-            int testSize = dataSet.numInstances() - trainSize;
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
 
-            Instances train = new Instances(dataSet, 0, trainSize);
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
 
-            Instances test = new Instances(dataSet, trainSize, testSize);
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
 
-            test.setClassIndex(test.numAttributes() - 1);
-            train.setClassIndex(test.numAttributes() - 1);
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
 
-            RT.buildClassifier(train);
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
 
-            Evaluation eval = new Evaluation(train);
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-            eval.evaluateModel(RT, test);
+                    } else if (gui.bttn_State == 1) {
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        RandomTree RT = new RandomTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            nameString = RT.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        FC.setFilter(atrSelect);
+                        FC.setClassifier(RT);
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        DataSource source = new DataSource(FileLocation);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+                case "Multi Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomTree RT = new RandomTree();
+
+                        MultiFilter multi = new MultiFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(multi);
+
+                        FC.setClassifier(RT);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        RandomTree RT = new RandomTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        MultiFilter multi = new MultiFilter();
+
+                        FC.setFilter(multi);
+                        FC.setClassifier(RT);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Remove":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomTree RT = new RandomTree();
+
+                        Remove remove = new Remove();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(remove);
+
+                        FC.setClassifier(RT);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        RandomTree RT = new RandomTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Remove remove = new Remove();
+
+                        FC.setFilter(remove);
+                        FC.setClassifier(RT);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Normalize":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomTree RT = new RandomTree();
+
+                        Normalize normalize = new Normalize();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(normalize);
+
+                        FC.setClassifier(RT);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        RandomTree RT = new RandomTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Normalize normalize = new Normalize();
+
+                        FC.setFilter(normalize);
+                        FC.setClassifier(RT);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "All Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomTree RT = new RandomTree();
+
+                        AllFilter allfilt = new AllFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(allfilt);
+
+                        FC.setClassifier(RT);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        RandomTree RT = new RandomTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AllFilter allfilt = new AllFilter();
+
+                        FC.setFilter(allfilt);
+                        FC.setClassifier(RT);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Replace Missing Values":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        RandomTree RT = new RandomTree();
+
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(RMV);
+
+                        FC.setClassifier(RT);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        RandomTree RT = new RandomTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+                        FC.setFilter(RMV);
+                        FC.setClassifier(RT);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+            }
+        } else {
+            if (gui.bttn_State == 1) {
+                System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                System.out.println("bttnstate= " + gui.bttn_State);
+
+                DataSource source = new DataSource(FileLocation);
+                Instances dataSet = source.getDataSet();
+
+                dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                RandomTree RT = new RandomTree();
+                RT.buildClassifier(dataSet);
+                System.out.println(RT);
+                System.out.println("----------------------------------------------");
+                Evaluation eval = new Evaluation(dataSet);
+                Random rand = new Random(1);
+
+                int folds = default_fold;
+                folds = gui.fold_count;
+
+                DataSource source2 = new DataSource(FileLocation);
+
+                Instances testDataSet = source2.getDataSet();
+
+                testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                eval.crossValidateModel(RT, testDataSet, folds, rand);
+
+                nameString = RT.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            } else if (gui.bttn_State == 0) {
+
+                System.out.println("bttnstate= " + gui.bttn_State);
+                DataSource source = new DataSource(FileLocation);
+                RandomTree RT = new RandomTree();
+
+                Instances dataSet = source.getDataSet();
+
+                System.out.println("SPLIT PERCENTAGE ");
+                dataSet.randomize(new java.util.Random(0));
+
+                //Random rand = new Random(1);
+                int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                int testSize = dataSet.numInstances() - trainSize;
+
+                Instances train = new Instances(dataSet, 0, trainSize);
+
+                Instances test = new Instances(dataSet, trainSize, testSize);
+
+                test.setClassIndex(test.numAttributes() - 1);
+                train.setClassIndex(test.numAttributes() - 1);
+
+                RT.buildClassifier(train);
+
+                Evaluation eval = new Evaluation(train);
+
+                eval.evaluateModel(RT, test);
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                nameString = RT.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+            }
 
         }
-
     }
 
     public void J48Tree() throws Exception {
+        if (gui.filterState == true) {
 
-        if (gui.bttn_State == 1) {
-            System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
-            System.out.println("bttnstate= " + gui.bttn_State);
+            switch (gui.filterName) {
+                case "Attribute Selection":
+                    if (gui.bttn_State == 0) {
 
-            DataSource source = new DataSource(FileLocation);
-            Instances dataSet = source.getDataSet();
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
 
-            dataSet.setClassIndex(dataSet.numAttributes() - 1);
+                        Instances dataSet = source.getDataSet();
 
-            J48 j48tree = new J48();
-            j48tree.buildClassifier(dataSet);
-            System.out.println(j48tree);
-            System.out.println("----------------------------------------------");
+                        dataSet.randomize(new java.util.Random(0));
 
-            Evaluation eval = new Evaluation(dataSet);
-            Random rand = new Random(1);
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            int folds = default_fold;
-            folds = gui.fold_count;
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            DataSource source2 = new DataSource(FileLocation);
+                        int testSize = dataSet.numInstances() - trainSize;
 
-            Instances testDataSet = source2.getDataSet();
+                        Instances train = new Instances(dataSet, 0, trainSize);
 
-            testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+                        Instances test = new Instances(dataSet, trainSize, testSize);
 
-            eval.crossValidateModel(j48tree, testDataSet, folds, rand);
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
 
-            nameString = j48tree.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
+                        J48 j48tree = new J48();
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        FC.setFilter(atrSelect);
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        FC.setClassifier(j48tree);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        } else if (gui.bttn_State == 0) {
+                        FC.buildClassifier(train);
 
-            System.out.println("bttnstate= " + gui.bttn_State);
-            DataSource source = new DataSource(FileLocation);
-            J48 j48tree = new J48();
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
 
-            Instances dataSet = source.getDataSet();
+                        eval.evaluateModel(FC, test);
 
-            System.out.println("SPLIT PERCENTAGE ");
-            dataSet.randomize(new java.util.Random(0));
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
 
-            //Random rand = new Random(1);
-            int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
 
-            int testSize = dataSet.numInstances() - trainSize;
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
 
-            Instances train = new Instances(dataSet, 0, trainSize);
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
 
-            Instances test = new Instances(dataSet, trainSize, testSize);
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
 
-            test.setClassIndex(test.numAttributes() - 1);
-            train.setClassIndex(test.numAttributes() - 1);
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-            j48tree.buildClassifier(train);
+                    } else if (gui.bttn_State == 1) {
 
-            Evaluation eval = new Evaluation(train);
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        J48 j48tree = new J48();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            eval.evaluateModel(j48tree, test);
+                        FC.setFilter(atrSelect);
+                        FC.setClassifier(j48tree);
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
 
-            nameString = j48tree.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        DataSource source = new DataSource(FileLocation);
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        Instances dataSet = source.getDataSet();
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+                case "Multi Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        J48 j48tree = new J48();
+
+                        MultiFilter multi = new MultiFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(multi);
+
+                        FC.setClassifier(j48tree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        J48 j48tree = new J48();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        MultiFilter multi = new MultiFilter();
+
+                        FC.setFilter(multi);
+                        FC.setClassifier(j48tree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Remove":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        J48 j48tree = new J48();
+
+                        Remove remove = new Remove();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(remove);
+
+                        FC.setClassifier(j48tree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        J48 j48tree = new J48();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Remove remove = new Remove();
+
+                        FC.setFilter(remove);
+                        FC.setClassifier(j48tree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Normalize":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        J48 j48tree = new J48();
+
+                        Normalize normalize = new Normalize();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(normalize);
+
+                        FC.setClassifier(j48tree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        J48 j48tree = new J48();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Normalize normalize = new Normalize();
+
+                        FC.setFilter(normalize);
+                        FC.setClassifier(j48tree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "All Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        J48 j48tree = new J48();
+
+                        AllFilter allfilt = new AllFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(allfilt);
+
+                        FC.setClassifier(j48tree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        J48 j48tree = new J48();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AllFilter allfilt = new AllFilter();
+
+                        FC.setFilter(allfilt);
+                        FC.setClassifier(j48tree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Replace Missing Values":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        J48 j48tree = new J48();
+
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(RMV);
+
+                        FC.setClassifier(j48tree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        J48 j48tree = new J48();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+                        FC.setFilter(RMV);
+                        FC.setClassifier(j48tree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+            }
+        } else {
+            if (gui.bttn_State == 1) {
+                System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                System.out.println("bttnstate= " + gui.bttn_State);
+
+                DataSource source = new DataSource(FileLocation);
+                Instances dataSet = source.getDataSet();
+
+                dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                J48 j48tree = new J48();
+                j48tree.buildClassifier(dataSet);
+                System.out.println(j48tree);
+                System.out.println("----------------------------------------------");
+
+                Evaluation eval = new Evaluation(dataSet);
+                Random rand = new Random(1);
+
+                int folds = default_fold;
+                folds = gui.fold_count;
+
+                DataSource source2 = new DataSource(FileLocation);
+
+                Instances testDataSet = source2.getDataSet();
+
+                testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                eval.crossValidateModel(j48tree, testDataSet, folds, rand);
+
+                nameString = j48tree.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            } else if (gui.bttn_State == 0) {
+
+                System.out.println("bttnstate= " + gui.bttn_State);
+                DataSource source = new DataSource(FileLocation);
+                J48 j48tree = new J48();
+
+                Instances dataSet = source.getDataSet();
+
+                System.out.println("SPLIT PERCENTAGE ");
+                dataSet.randomize(new java.util.Random(0));
+
+                //Random rand = new Random(1);
+                int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                int testSize = dataSet.numInstances() - trainSize;
+
+                Instances train = new Instances(dataSet, 0, trainSize);
+
+                Instances test = new Instances(dataSet, trainSize, testSize);
+
+                test.setClassIndex(test.numAttributes() - 1);
+                train.setClassIndex(test.numAttributes() - 1);
+
+                j48tree.buildClassifier(train);
+
+                Evaluation eval = new Evaluation(train);
+
+                eval.evaluateModel(j48tree, test);
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                nameString = j48tree.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+            }
 
         }
-
     }
 
     public void BNBayes() throws Exception {
+        if (gui.filterState == true) {
 
-        if (gui.bttn_State == 1) {
-            System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
-            System.out.println("bttnstate= " + gui.bttn_State);
+            switch (gui.filterName) {
+                case "Attribute Selection":
+                    if (gui.bttn_State == 0) {
 
-            DataSource source = new DataSource(FileLocation);
-            Instances dataSet = source.getDataSet();
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
 
-            dataSet.setClassIndex(dataSet.numAttributes() - 1);
+                        Instances dataSet = source.getDataSet();
 
-            BayesNet BN = new BayesNet();
-            BN.buildClassifier(dataSet);
-            System.out.println(BN);
-            System.out.println("----------------------------------------------");
+                        dataSet.randomize(new java.util.Random(0));
 
-            Evaluation eval = new Evaluation(dataSet);
-            Random rand = new Random(1);
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            int folds = default_fold;
-            folds = gui.fold_count;
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            DataSource source2 = new DataSource(FileLocation);
+                        int testSize = dataSet.numInstances() - trainSize;
 
-            Instances testDataSet = source2.getDataSet();
+                        Instances train = new Instances(dataSet, 0, trainSize);
 
-            testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+                        Instances test = new Instances(dataSet, trainSize, testSize);
 
-            eval.crossValidateModel(BN, testDataSet, folds, rand);
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
 
-            nameString = BN.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
+                        BayesNet BN = new BayesNet();
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        FC.setFilter(atrSelect);
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        FC.setClassifier(BN);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        } else if (gui.bttn_State == 0) {
+                        FC.buildClassifier(train);
 
-            System.out.println("bttnstate= " + gui.bttn_State);
-            DataSource source = new DataSource(FileLocation);
-            BayesNet BN = new BayesNet();
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
 
-            Instances dataSet = source.getDataSet();
+                        eval.evaluateModel(FC, test);
 
-            System.out.println("SPLIT PERCENTAGE ");
-             dataSet.randomize(new java.util.Random(0));
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
 
-            //Random rand = new Random(1);
-            int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
 
-            int testSize = dataSet.numInstances() - trainSize;
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
 
-            Instances train = new Instances(dataSet, 0, trainSize);
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
 
-            Instances test = new Instances(dataSet, trainSize, testSize);
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
 
-            test.setClassIndex(test.numAttributes() - 1);
-            train.setClassIndex(test.numAttributes() - 1);
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-            BN.buildClassifier(train);
+                    } else if (gui.bttn_State == 1) {
 
-            Evaluation eval = new Evaluation(train);
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        BayesNet BN = new BayesNet();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            eval.evaluateModel(BN, test);
+                        FC.setFilter(atrSelect);
+                        FC.setClassifier(BN);
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
 
-            nameString = BN.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        DataSource source = new DataSource(FileLocation);
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        Instances dataSet = source.getDataSet();
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
 
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+                case "Multi Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        BayesNet BN = new BayesNet();
+
+                        MultiFilter multi = new MultiFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(multi);
+
+                        FC.setClassifier(BN);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        BayesNet BN = new BayesNet();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        MultiFilter multi = new MultiFilter();
+
+                        FC.setFilter(multi);
+                        FC.setClassifier(BN);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Remove":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        BayesNet BN = new BayesNet();
+
+                        Remove remove = new Remove();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(remove);
+
+                        FC.setClassifier(BN);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        BayesNet BN = new BayesNet();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Remove remove = new Remove();
+
+                        FC.setFilter(remove);
+                        FC.setClassifier(BN);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Normalize":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        BayesNet BN = new BayesNet();
+
+                        Normalize normalize = new Normalize();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(normalize);
+
+                        FC.setClassifier(BN);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        BayesNet BN = new BayesNet();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Normalize normalize = new Normalize();
+
+                        FC.setFilter(normalize);
+                        FC.setClassifier(BN);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "All Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        BayesNet BN = new BayesNet();
+
+                        AllFilter allfilt = new AllFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(allfilt);
+
+                        FC.setClassifier(BN);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        BayesNet BN = new BayesNet();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AllFilter allfilt = new AllFilter();
+
+                        FC.setFilter(allfilt);
+                        FC.setClassifier(BN);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Replace Missing Values":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        BayesNet BN = new BayesNet();
+
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(RMV);
+
+                        FC.setClassifier(BN);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        BayesNet BN = new BayesNet();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+                        FC.setFilter(RMV);
+                        FC.setClassifier(BN);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+            }
+        } else {
+            if (gui.bttn_State == 1) {
+                System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                System.out.println("bttnstate= " + gui.bttn_State);
+
+                DataSource source = new DataSource(FileLocation);
+                Instances dataSet = source.getDataSet();
+
+                dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                BayesNet BN = new BayesNet();
+                BN.buildClassifier(dataSet);
+                System.out.println(BN);
+                System.out.println("----------------------------------------------");
+
+                Evaluation eval = new Evaluation(dataSet);
+                Random rand = new Random(1);
+
+                int folds = default_fold;
+                folds = gui.fold_count;
+
+                DataSource source2 = new DataSource(FileLocation);
+
+                Instances testDataSet = source2.getDataSet();
+
+                testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                eval.crossValidateModel(BN, testDataSet, folds, rand);
+
+                nameString = BN.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            } else if (gui.bttn_State == 0) {
+
+                System.out.println("bttnstate= " + gui.bttn_State);
+                DataSource source = new DataSource(FileLocation);
+                BayesNet BN = new BayesNet();
+
+                Instances dataSet = source.getDataSet();
+
+                System.out.println("SPLIT PERCENTAGE ");
+                dataSet.randomize(new java.util.Random(0));
+
+                //Random rand = new Random(1);
+                int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                int testSize = dataSet.numInstances() - trainSize;
+
+                Instances train = new Instances(dataSet, 0, trainSize);
+
+                Instances test = new Instances(dataSet, trainSize, testSize);
+
+                test.setClassIndex(test.numAttributes() - 1);
+                train.setClassIndex(test.numAttributes() - 1);
+
+                BN.buildClassifier(train);
+
+                Evaluation eval = new Evaluation(train);
+
+                eval.evaluateModel(BN, test);
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                nameString = BN.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+            }
         }
-
     }
 
     public void NBBayes() throws Exception {
+        if (gui.filterState == true) {
 
-        if (gui.bttn_State == 1) {
-            System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
-            System.out.println("bttnstate= " + gui.bttn_State);
+            switch (gui.filterName) {
+                case "Attribute Selection":
+                    if (gui.bttn_State == 0) {
 
-            DataSource source = new DataSource(FileLocation);
-            Instances dataSet = source.getDataSet();
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
 
-            dataSet.setClassIndex(dataSet.numAttributes() - 1);
+                        Instances dataSet = source.getDataSet();
 
-            NaiveBayes NB = new NaiveBayes();
-            NB.buildClassifier(dataSet);
-            System.out.println(NB);
-            System.out.println("----------------------------------------------");
+                        dataSet.randomize(new java.util.Random(0));
 
-            Evaluation eval = new Evaluation(dataSet);
-            Random rand = new Random(1);
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            int folds = default_fold;
-            folds = gui.fold_count;
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            DataSource source2 = new DataSource(FileLocation);
+                        int testSize = dataSet.numInstances() - trainSize;
 
-            Instances testDataSet = source2.getDataSet();
+                        Instances train = new Instances(dataSet, 0, trainSize);
 
-            testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+                        Instances test = new Instances(dataSet, trainSize, testSize);
 
-            eval.crossValidateModel(NB, testDataSet, folds, rand);
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
 
-            nameString = NB.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
+                        NaiveBayes NB = new NaiveBayes();
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        FC.setFilter(atrSelect);
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        FC.setClassifier(NB);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        } else if (gui.bttn_State == 0) {
+                        FC.buildClassifier(train);
 
-            System.out.println("bttnstate= " + gui.bttn_State);
-            DataSource source = new DataSource(FileLocation);
-            NaiveBayes NB = new NaiveBayes();
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
 
-            Instances dataSet = source.getDataSet();
+                        eval.evaluateModel(FC, test);
 
-            System.out.println("SPLIT PERCENTAGE ");
-            dataSet.randomize(new java.util.Random(0));
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        NaiveBayes NB = new NaiveBayes();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AttributeSelection atrSelect = new AttributeSelection();
+
+                        FC.setFilter(atrSelect);
+                        FC.setClassifier(NB);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+                case "Multi Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        NaiveBayes NB = new NaiveBayes();
+
+                        MultiFilter multi = new MultiFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(multi);
+
+                        FC.setClassifier(NB);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        NaiveBayes NB = new NaiveBayes();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        MultiFilter multi = new MultiFilter();
+
+                        FC.setFilter(multi);
+                        FC.setClassifier(NB);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Remove":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        NaiveBayes NB = new NaiveBayes();
+
+                        Remove remove = new Remove();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(remove);
+
+                        FC.setClassifier(NB);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        NaiveBayes NB = new NaiveBayes();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Remove remove = new Remove();
+
+                        FC.setFilter(remove);
+                        FC.setClassifier(NB);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Normalize":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        NaiveBayes NB = new NaiveBayes();
+
+                        Normalize normalize = new Normalize();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(normalize);
+
+                        FC.setClassifier(NB);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        NaiveBayes NB = new NaiveBayes();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Normalize normalize = new Normalize();
+
+                        FC.setFilter(normalize);
+                        FC.setClassifier(NB);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "All Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        NaiveBayes NB = new NaiveBayes();
+
+                        AllFilter allfilt = new AllFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(allfilt);
+
+                        FC.setClassifier(NB);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        NaiveBayes NB = new NaiveBayes();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AllFilter allfilt = new AllFilter();
+
+                        FC.setFilter(allfilt);
+                        FC.setClassifier(NB);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Replace Missing Values":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        NaiveBayes NB = new NaiveBayes();
+
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(RMV);
+
+                        FC.setClassifier(NB);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        NaiveBayes NB = new NaiveBayes();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+                        FC.setFilter(RMV);
+                        FC.setClassifier(NB);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+            }
+        } else {
+            if (gui.bttn_State == 1) {
+                System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                System.out.println("bttnstate= " + gui.bttn_State);
+
+                DataSource source = new DataSource(FileLocation);
+                Instances dataSet = source.getDataSet();
+
+                dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                NaiveBayes NB = new NaiveBayes();
+                NB.buildClassifier(dataSet);
+                System.out.println(NB);
+                System.out.println("----------------------------------------------");
+
+                Evaluation eval = new Evaluation(dataSet);
+                Random rand = new Random(1);
+
+                int folds = default_fold;
+                folds = gui.fold_count;
+
+                DataSource source2 = new DataSource(FileLocation);
+
+                Instances testDataSet = source2.getDataSet();
+
+                testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                eval.crossValidateModel(NB, testDataSet, folds, rand);
+
+                nameString = NB.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            } else if (gui.bttn_State == 0) {
+
+                System.out.println("bttnstate= " + gui.bttn_State);
+                DataSource source = new DataSource(FileLocation);
+                NaiveBayes NB = new NaiveBayes();
+
+                Instances dataSet = source.getDataSet();
+
+                System.out.println("SPLIT PERCENTAGE ");
+                dataSet.randomize(new java.util.Random(0));
 //
-            //Random rand = new Random(1);
-            int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+                //Random rand = new Random(1);
+                int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            int testSize = dataSet.numInstances() - trainSize;
+                int testSize = dataSet.numInstances() - trainSize;
 
-            Instances train = new Instances(dataSet, 0, trainSize);
+                Instances train = new Instances(dataSet, 0, trainSize);
 
-            Instances test = new Instances(dataSet, trainSize, testSize);
+                Instances test = new Instances(dataSet, trainSize, testSize);
 
-            test.setClassIndex(test.numAttributes() - 1);
-            train.setClassIndex(test.numAttributes() - 1);
+                test.setClassIndex(test.numAttributes() - 1);
+                train.setClassIndex(test.numAttributes() - 1);
 
-            NB.buildClassifier(train);
+                NB.buildClassifier(train);
 
-            Evaluation eval = new Evaluation(train);
+                Evaluation eval = new Evaluation(train);
 
-            eval.evaluateModel(NB, test);
+                eval.evaluateModel(NB, test);
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
 
-            nameString = NB.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                nameString = NB.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
+            }
         }
-
     }
 
     public void LMTTree() throws Exception {
-        if (gui.bttn_State == 1) {
-            System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
-            System.out.println("bttnstate= " + gui.bttn_State);
+        if (gui.filterState == true) {
 
-            DataSource source = new DataSource(FileLocation);
-            Instances dataSet = source.getDataSet();
+            switch (gui.filterName) {
+                case "Attribute Selection":
+                    if (gui.bttn_State == 0) {
 
-            dataSet.setClassIndex(dataSet.numAttributes() - 1);
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
 
-            LMT LMTTree = new LMT();
-            LMTTree.buildClassifier(dataSet);
-            System.out.println(LMTTree);
-            System.out.println("----------------------------------------------");
+                        Instances dataSet = source.getDataSet();
 
-            Evaluation eval = new Evaluation(dataSet);
-            Random rand = new Random(1);
+                        dataSet.randomize(new java.util.Random(0));
 
-            int folds = default_fold;
-            folds = gui.fold_count;
-            System.out.println("fooooooooooooooooooooooooooooolds" + folds);
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            DataSource source2 = new DataSource(FileLocation);
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            Instances testDataSet = source2.getDataSet();
+                        int testSize = dataSet.numInstances() - trainSize;
 
-            testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+                        Instances train = new Instances(dataSet, 0, trainSize);
 
-            eval.crossValidateModel(LMTTree, testDataSet, folds, rand);
+                        Instances test = new Instances(dataSet, trainSize, testSize);
 
-            nameString = LMTTree.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        LMT LMTTree = new LMT();
 
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        FC.setFilter(atrSelect);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        } else if (gui.bttn_State == 0) {
+                        FC.setClassifier(LMTTree);
 
-            System.out.println("bttnstate= " + gui.bttn_State);
-            DataSource source = new DataSource(FileLocation);
-            LMT LMTTree = new LMT();
+                        FC.buildClassifier(train);
 
-            Instances dataSet = source.getDataSet();
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
 
-            System.out.println("SPLIT PERCENTAGE ");
-            dataSet.randomize(new java.util.Random(0));
+                        eval.evaluateModel(FC, test);
 
-            //Random rand = new Random(1);
-            int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
 
-            int testSize = dataSet.numInstances() - trainSize;
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
 
-            Instances train = new Instances(dataSet, 0, trainSize);
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
 
-            Instances test = new Instances(dataSet, trainSize, testSize);
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
 
-            test.setClassIndex(test.numAttributes() - 1);
-            train.setClassIndex(test.numAttributes() - 1);
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
 
-            LMTTree.buildClassifier(train);
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-            Evaluation eval = new Evaluation(train);
+                    } else if (gui.bttn_State == 1) {
 
-            eval.evaluateModel(LMTTree, test);
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        LMT LMTTree = new LMT();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            nameString = LMTTree.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        FC.setFilter(atrSelect);
+                        FC.setClassifier(LMTTree);
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        DataSource source = new DataSource(FileLocation);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                        Instances dataSet = source.getDataSet();
 
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+                case "Multi Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        LMT LMTTree = new LMT();
+
+                        MultiFilter multi = new MultiFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(multi);
+
+                        FC.setClassifier(LMTTree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        LMT LMTTree = new LMT();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        MultiFilter multi = new MultiFilter();
+
+                        FC.setFilter(multi);
+                        FC.setClassifier(LMTTree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Remove":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        LMT LMTTree = new LMT();
+
+                        Remove remove = new Remove();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(remove);
+
+                        FC.setClassifier(LMTTree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        LMT LMTTree = new LMT();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Remove remove = new Remove();
+
+                        FC.setFilter(remove);
+                        FC.setClassifier(LMTTree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Normalize":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        LMT LMTTree = new LMT();
+
+                        Normalize normalize = new Normalize();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(normalize);
+
+                        FC.setClassifier(LMTTree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        LMT LMTTree = new LMT();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Normalize normalize = new Normalize();
+
+                        FC.setFilter(normalize);
+                        FC.setClassifier(LMTTree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "All Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        LMT LMTTree = new LMT();
+
+                        AllFilter allfilt = new AllFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(allfilt);
+
+                        FC.setClassifier(LMTTree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        LMT LMTTree = new LMT();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AllFilter allfilt = new AllFilter();
+
+                        FC.setFilter(allfilt);
+                        FC.setClassifier(LMTTree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Replace Missing Values":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        LMT LMTTree = new LMT();
+
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(RMV);
+
+                        FC.setClassifier(LMTTree);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        LMT LMTTree = new LMT();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+                        FC.setFilter(RMV);
+                        FC.setClassifier(LMTTree);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+            }
+        } else {
+            if (gui.bttn_State == 1) {
+                System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                System.out.println("bttnstate= " + gui.bttn_State);
+
+                DataSource source = new DataSource(FileLocation);
+                Instances dataSet = source.getDataSet();
+
+                dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                LMT LMTTree = new LMT();
+                LMTTree.buildClassifier(dataSet);
+                System.out.println(LMTTree);
+                System.out.println("----------------------------------------------");
+
+                Evaluation eval = new Evaluation(dataSet);
+                Random rand = new Random(1);
+
+                int folds = default_fold;
+                folds = gui.fold_count;
+                System.out.println("fooooooooooooooooooooooooooooolds" + folds);
+
+                DataSource source2 = new DataSource(FileLocation);
+
+                Instances testDataSet = source2.getDataSet();
+
+                testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                eval.crossValidateModel(LMTTree, testDataSet, folds, rand);
+
+                nameString = LMTTree.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            } else if (gui.bttn_State == 0) {
+
+                System.out.println("bttnstate= " + gui.bttn_State);
+                DataSource source = new DataSource(FileLocation);
+                LMT LMTTree = new LMT();
+
+                Instances dataSet = source.getDataSet();
+
+                System.out.println("SPLIT PERCENTAGE ");
+                dataSet.randomize(new java.util.Random(0));
+
+                //Random rand = new Random(1);
+                int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                int testSize = dataSet.numInstances() - trainSize;
+
+                Instances train = new Instances(dataSet, 0, trainSize);
+
+                Instances test = new Instances(dataSet, trainSize, testSize);
+
+                test.setClassIndex(test.numAttributes() - 1);
+                train.setClassIndex(test.numAttributes() - 1);
+
+                LMTTree.buildClassifier(train);
+
+                Evaluation eval = new Evaluation(train);
+
+                eval.evaluateModel(LMTTree, test);
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                nameString = LMTTree.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+            }
         }
-
     }
 
     public void REP_Tree() throws Exception {
-        if (gui.bttn_State == 1) {
-            System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
-            System.out.println("bttnstate= " + gui.bttn_State);
+        if (gui.filterState == true) {
 
-            DataSource source = new DataSource(FileLocation);
-            Instances dataSet = source.getDataSet();
+            switch (gui.filterName) {
+                case "Attribute Selection":
+                    if (gui.bttn_State == 0) {
 
-            dataSet.setClassIndex(dataSet.numAttributes() - 1);
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
 
-            REPTree REP = new REPTree();
-            REP.buildClassifier(dataSet);
+                        Instances dataSet = source.getDataSet();
 
-            System.out.println(REP);
-            System.out.println("----------------------------------------------");
+                        dataSet.randomize(new java.util.Random(0));
 
-            Evaluation eval = new Evaluation(dataSet);
-            Random rand = new Random(1);
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            int folds = default_fold;
-            folds = gui.fold_count;
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            DataSource source2 = new DataSource(FileLocation);
+                        int testSize = dataSet.numInstances() - trainSize;
 
-            Instances testDataSet = source2.getDataSet();
+                        Instances train = new Instances(dataSet, 0, trainSize);
 
-            testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+                        Instances test = new Instances(dataSet, trainSize, testSize);
 
-            eval.crossValidateModel(REP, testDataSet, folds, rand);
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
 
-            nameString = REP.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
+                        REPTree REP = new REPTree();
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        AttributeSelection atrSelect = new AttributeSelection();
 
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        FC.setFilter(atrSelect);
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        FC.setClassifier(REP);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        } else if (gui.bttn_State == 0) {
+                        FC.buildClassifier(train);
 
-            System.out.println("bttnstate= " + gui.bttn_State);
-            DataSource source = new DataSource(FileLocation);
-            REPTree REP = new REPTree();
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
 
-            Instances dataSet = source.getDataSet();
+                        eval.evaluateModel(FC, test);
 
-            System.out.println("SPLIT PERCENTAGE ");
-            dataSet.randomize(new java.util.Random(0));
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
 
-            //Random rand = new Random(1);
-            int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
 
-            int testSize = dataSet.numInstances() - trainSize;
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
 
-            Instances train = new Instances(dataSet, 0, trainSize);
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
 
-            Instances test = new Instances(dataSet, trainSize, testSize);
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
 
-            test.setClassIndex(test.numAttributes() - 1);
-            train.setClassIndex(test.numAttributes() - 1);
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        REPTree REP = new REPTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AttributeSelection atrSelect = new AttributeSelection();
+
+                        FC.setFilter(atrSelect);
+                        FC.setClassifier(REP);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
             
-            REP.buildClassifier(train);
+                     */
+                    break;
 
-            Evaluation eval = new Evaluation(train);
+                case "Multi Filter":
+                    if (gui.bttn_State == 0) {
 
-            eval.evaluateModel(REP, test);
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
 
-            System.out.println(eval.toSummaryString("=== Summary ===\n", false));
-            System.out.println(eval.toClassDetailsString());
-            System.out.println("----------------------------------------------");
-            System.out.println(eval.toMatrixString());
-            System.out.println("----------------------------------------------");
+                        Instances dataSet = source.getDataSet();
 
-            nameString = REP.toString();
-            summString = eval.toSummaryString("\n=== Summary ===\n", false);
-            classString = eval.toClassDetailsString();
-            matrixString = eval.toMatrixString();
-            ThresholdCurve tc = new ThresholdCurve();
-            int classIndex = 0; // ROC for the 1st class label
-            Instances curve = tc.getCurve(eval.predictions(), classIndex);
+                        dataSet.randomize(new java.util.Random(0));
 
-            PlotData2D plotdata = new PlotData2D(curve);
-            plotdata.setPlotName(curve.relationName());
-            plotdata.addInstanceNumberAttribute();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
 
-            ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
-            tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
-            tvp.setName(curve.relationName());
-            tvp.addPlot(plotdata);
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
 
-            jf.setName("WEKA ROC: " + tvp.getName());
-            jf.setSize(500, 400);
-            jf.getContentPane().setLayout(new BorderLayout());
-            jf.getContentPane().add(tvp, BorderLayout.CENTER);
-            jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        REPTree REP = new REPTree();
+
+                        MultiFilter multi = new MultiFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(multi);
+
+                        FC.setClassifier(REP);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        REPTree REP = new REPTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        MultiFilter multi = new MultiFilter();
+
+                        FC.setFilter(multi);
+                        FC.setClassifier(REP);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Remove":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        REPTree REP = new REPTree();
+
+                        Remove remove = new Remove();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(remove);
+
+                        FC.setClassifier(REP);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        REPTree REP = new REPTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Remove remove = new Remove();
+
+                        FC.setFilter(remove);
+                        FC.setClassifier(REP);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Normalize":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        REPTree REP = new REPTree();
+
+                        Normalize normalize = new Normalize();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(normalize);
+
+                        FC.setClassifier(REP);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        REPTree REP = new REPTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        Normalize normalize = new Normalize();
+
+                        FC.setFilter(normalize);
+                        FC.setClassifier(REP);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "All Filter":
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        REPTree REP = new REPTree();
+
+                        AllFilter allfilt = new AllFilter();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(allfilt);
+
+                        FC.setClassifier(REP);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        REPTree REP = new REPTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        AllFilter allfilt = new AllFilter();
+
+                        FC.setFilter(allfilt);
+                        FC.setClassifier(REP);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+                case "Replace Missing Values":
+
+                    if (gui.bttn_State == 0) {
+
+                        //ATTRIBUTE PERCENTAGE
+//                getAttributes();
+                        System.out.println("ATTRIBUTE PERCENTAGE");
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        dataSet.randomize(new java.util.Random(0));
+
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                        int testSize = dataSet.numInstances() - trainSize;
+
+                        Instances train = new Instances(dataSet, 0, trainSize);
+
+                        Instances test = new Instances(dataSet, trainSize, testSize);
+
+                        test.setClassIndex(test.numAttributes() - 1);
+                        train.setClassIndex(test.numAttributes() - 1);
+
+                        REPTree REP = new REPTree();
+
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+//                String[] options = new String[]{"-R", "1"};
+//                atrSelect.setOptions(options);
+                        FilteredClassifier FC = new FilteredClassifier();
+
+                        FC.setFilter(RMV);
+
+                        FC.setClassifier(REP);
+
+                        FC.buildClassifier(train);
+
+                        System.out.println(FC);
+                        Evaluation eval = new Evaluation(train);
+
+                        eval.evaluateModel(FC, test);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    } else if (gui.bttn_State == 1) {
+
+                        //ATTRIBUTE CROSS
+//                getAttributes();       
+                        System.out.println("ATTRIBUTE CROSS");
+                        REPTree REP = new REPTree();
+                        FilteredClassifier FC = new FilteredClassifier();
+                        ReplaceMissingValues RMV = new ReplaceMissingValues();
+
+                        FC.setFilter(RMV);
+                        FC.setClassifier(REP);
+
+                        System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                        System.out.println("bttnstate= " + gui.bttn_State);
+
+                        DataSource source = new DataSource(FileLocation);
+
+                        Instances dataSet = source.getDataSet();
+
+                        System.out.println("CROSS VALIDATON");
+                        //Instances dataSet = source.getDataSet();
+                        dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                        FC.buildClassifier(dataSet);
+                        System.out.println(FC);
+                        System.out.println("----------------------------------------------");
+
+                        Evaluation eval = new Evaluation(dataSet);
+
+                        Random rand = new Random(1);
+
+                        int folds = default_fold;
+
+                        folds = gui.fold_count;
+
+                        DataSource source2 = new DataSource(FileLocation);
+
+                        Instances testDataSet = source2.getDataSet();
+
+                        testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                        eval.crossValidateModel(FC, testDataSet, folds, rand);
+
+                        nameString = FC.toString();
+                        summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                        classString = eval.toClassDetailsString();
+                        matrixString = eval.toMatrixString();
+
+                        System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                        System.out.println(eval.toClassDetailsString());
+                        System.out.println("----------------------------------------------");
+                        System.out.println(eval.toMatrixString());
+                        System.out.println("----------------------------------------------");
+
+                        ThresholdCurve tc = new ThresholdCurve();
+                        int classIndex = 0; // ROC for the 1st class label
+                        Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                        PlotData2D plotdata = new PlotData2D(curve);
+                        plotdata.setPlotName(curve.relationName());
+                        plotdata.addInstanceNumberAttribute();
+
+                        ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                        tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                        tvp.setName(curve.relationName());
+                        tvp.addPlot(plotdata);
+
+                        jf.setName("WEKA ROC: " + tvp.getName());
+                        jf.setSize(500, 400);
+                        jf.getContentPane().setLayout(new BorderLayout());
+                        jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                    }
+                    /*
+            
+                     */
+                    break;
+
+            }
+        } else {
+            if (gui.bttn_State == 1) {
+                System.out.println("persplit " + gui.Rad_Bttn_PercentageSplit.isSelected());
+                System.out.println("bttnstate= " + gui.bttn_State);
+
+                DataSource source = new DataSource(FileLocation);
+                Instances dataSet = source.getDataSet();
+
+                dataSet.setClassIndex(dataSet.numAttributes() - 1);
+
+                REPTree REP = new REPTree();
+                REP.buildClassifier(dataSet);
+
+                System.out.println(REP);
+                System.out.println("----------------------------------------------");
+
+                Evaluation eval = new Evaluation(dataSet);
+                Random rand = new Random(1);
+
+                int folds = default_fold;
+                folds = gui.fold_count;
+
+                DataSource source2 = new DataSource(FileLocation);
+
+                Instances testDataSet = source2.getDataSet();
+
+                testDataSet.setClassIndex(testDataSet.numAttributes() - 1);
+
+                eval.crossValidateModel(REP, testDataSet, folds, rand);
+
+                nameString = REP.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            } else if (gui.bttn_State == 0) {
+
+                System.out.println("bttnstate= " + gui.bttn_State);
+                DataSource source = new DataSource(FileLocation);
+                REPTree REP = new REPTree();
+
+                Instances dataSet = source.getDataSet();
+
+                System.out.println("SPLIT PERCENTAGE ");
+                dataSet.randomize(new java.util.Random(0));
+
+                //Random rand = new Random(1);
+                int trainSize = (int) Math.round(dataSet.numInstances() * gui.percentage);
+
+                int testSize = dataSet.numInstances() - trainSize;
+
+                Instances train = new Instances(dataSet, 0, trainSize);
+
+                Instances test = new Instances(dataSet, trainSize, testSize);
+
+                test.setClassIndex(test.numAttributes() - 1);
+                train.setClassIndex(test.numAttributes() - 1);
+
+                REP.buildClassifier(train);
+
+                Evaluation eval = new Evaluation(train);
+
+                eval.evaluateModel(REP, test);
+
+                System.out.println(eval.toSummaryString("=== Summary ===\n", false));
+                System.out.println(eval.toClassDetailsString());
+                System.out.println("----------------------------------------------");
+                System.out.println(eval.toMatrixString());
+                System.out.println("----------------------------------------------");
+
+                nameString = REP.toString();
+                summString = eval.toSummaryString("\n=== Summary ===\n", false);
+                classString = eval.toClassDetailsString();
+                matrixString = eval.toMatrixString();
+                ThresholdCurve tc = new ThresholdCurve();
+                int classIndex = 0; // ROC for the 1st class label
+                Instances curve = tc.getCurve(eval.predictions(), classIndex);
+
+                PlotData2D plotdata = new PlotData2D(curve);
+                plotdata.setPlotName(curve.relationName());
+                plotdata.addInstanceNumberAttribute();
+
+                ThresholdVisualizePanel tvp = new ThresholdVisualizePanel();
+                tvp.setROCString("(Area under ROC = " + Utils.doubleToString(ThresholdCurve.getROCArea(curve), 4) + ")");
+                tvp.setName(curve.relationName());
+                tvp.addPlot(plotdata);
+
+                jf.setName("WEKA ROC: " + tvp.getName());
+                jf.setSize(500, 400);
+                jf.getContentPane().setLayout(new BorderLayout());
+                jf.getContentPane().add(tvp, BorderLayout.CENTER);
+                jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+            }
 
         }
-
     }
 }

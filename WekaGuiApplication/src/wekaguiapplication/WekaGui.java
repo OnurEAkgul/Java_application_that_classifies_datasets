@@ -6,9 +6,11 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import javax.swing.ButtonGroup;
+import javax.swing.DefaultListModel;
 import javax.swing.JFileChooser;
 import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
+import javax.swing.JList;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import weka.classifiers.evaluation.ThresholdCurve;
 import weka.classifiers.trees.RandomForest;
@@ -26,10 +28,17 @@ public class WekaGui extends javax.swing.JFrame {
     private void initComponents() {
 
         buttonGroup1 = new javax.swing.ButtonGroup();
+        buttonGroup2 = new javax.swing.ButtonGroup();
         jTabbedPane1 = new javax.swing.JTabbedPane();
         jPanel1 = new javax.swing.JPanel();
         jButton2 = new javax.swing.JButton();
         jButton3 = new javax.swing.JButton();
+        jScrollPane2 = new javax.swing.JScrollPane();
+        list_Attributes = new javax.swing.JList<>();
+        combo_Filters = new javax.swing.JComboBox<>();
+        jLabel6 = new javax.swing.JLabel();
+        jLabel7 = new javax.swing.JLabel();
+        jButton4 = new javax.swing.JButton();
         jPanel2 = new javax.swing.JPanel();
         jComboBox1 = new javax.swing.JComboBox<>();
         jButton1 = new javax.swing.JButton();
@@ -60,10 +69,25 @@ public class WekaGui extends javax.swing.JFrame {
             }
         });
 
-        jButton3.setText("jButton3");
+        jButton3.setText("Apply Filter");
         jButton3.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jButton3ActionPerformed(evt);
+            }
+        });
+
+        jScrollPane2.setViewportView(list_Attributes);
+
+        combo_Filters.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "All Filter", "Multi Filter", "Attribute Selection", "Normalize", "Remove", "Replace Missing Values" }));
+
+        jLabel6.setText("Select Filter");
+
+        jLabel7.setText("Attributes");
+
+        jButton4.setText("Undo");
+        jButton4.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton4ActionPerformed(evt);
             }
         });
 
@@ -73,19 +97,37 @@ public class WekaGui extends javax.swing.JFrame {
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGap(35, 35, 35)
+                .addComponent(jButton2, javax.swing.GroupLayout.PREFERRED_SIZE, 90, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(32, 32, 32)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jButton3)
-                    .addComponent(jButton2))
-                .addContainerGap(864, Short.MAX_VALUE))
+                    .addComponent(jLabel7)
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(combo_Filters, javax.swing.GroupLayout.PREFERRED_SIZE, 90, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jLabel6))
+                        .addGap(31, 31, 31)
+                        .addComponent(jButton3)
+                        .addGap(18, 18, 18)
+                        .addComponent(jButton4))
+                    .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 211, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addContainerGap(304, Short.MAX_VALUE))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGap(35, 35, 35)
-                .addComponent(jButton2)
-                .addGap(55, 55, 55)
-                .addComponent(jButton3)
-                .addContainerGap(596, Short.MAX_VALUE))
+                .addComponent(jLabel6)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(combo_Filters, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jButton3)
+                    .addComponent(jButton4)
+                    .addComponent(jButton2))
+                .addGap(30, 30, 30)
+                .addComponent(jLabel7)
+                .addGap(18, 18, 18)
+                .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 180, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addContainerGap(196, Short.MAX_VALUE))
         );
 
         jTabbedPane1.addTab("Preprocessing", jPanel1);
@@ -178,7 +220,7 @@ public class WekaGui extends javax.swing.JFrame {
                         .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(bttn_Visualiser, javax.swing.GroupLayout.PREFERRED_SIZE, 164, javax.swing.GroupLayout.PREFERRED_SIZE)
                             .addComponent(jButton1, javax.swing.GroupLayout.PREFERRED_SIZE, 164, javax.swing.GroupLayout.PREFERRED_SIZE))))
-                .addContainerGap(275, Short.MAX_VALUE))
+                .addContainerGap(58, Short.MAX_VALUE))
             .addGroup(jPanel2Layout.createSequentialGroup()
                 .addComponent(jScrollPane1)
                 .addContainerGap())
@@ -217,7 +259,7 @@ public class WekaGui extends javax.swing.JFrame {
                                 .addGap(18, 18, 18)
                                 .addComponent(bttn_Visualiser)))))
                 .addGap(18, 18, 18)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 611, Short.MAX_VALUE)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 400, Short.MAX_VALUE)
                 .addContainerGap())
         );
 
@@ -241,10 +283,23 @@ public class WekaGui extends javax.swing.JFrame {
 
     public static int bttn_State = -1;
 
+    public static boolean filterState = false;
+    public static String filterName;
     private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
-        // TODO add your handling code here:
+
+        System.out.println("filterstate= " + filterState);
+
+        filterState = true;
+        filterName = combo_Filters.getSelectedItem().toString();
+
+        System.out.println("filtername= "+filterName);
+        System.out.println("filterstate= " + filterState);
+        
+//        System.out.println("selected list: "+list_Attributes.getSelectedValue());
+
     }//GEN-LAST:event_jButton3ActionPerformed
 
+    DefaultListModel listmodel = new DefaultListModel();
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
 
         JFileChooser fileChoose = new JFileChooser();
@@ -260,6 +315,21 @@ public class WekaGui extends javax.swing.JFrame {
             System.out.println(FileLocation);
 
             FileLocation = ("milknew.arff");
+
+        }
+
+        EvaluationCalculating calc = new EvaluationCalculating();
+
+        try {
+            calc.getAttributes();
+        } catch (Exception e) {
+
+        }
+        listmodel.clear();
+        list_Attributes.setModel(listmodel);
+        for (int i = 0; i < calc.attribute_size; i++) {
+            listmodel.addElement(calc.attribute_names.get(i));
+            list_Attributes.setModel(listmodel);
         }
     }//GEN-LAST:event_jButton2ActionPerformed
 
@@ -312,9 +382,9 @@ public class WekaGui extends javax.swing.JFrame {
         fold_count = number;
         percentage = per;
 
-        percentage=per/100;
+        percentage = per / 100;
 
-        System.out.println("perc= "+percentage);
+        System.out.println("perc= " + percentage);
         jTextArea1.setText("");
 
         try {
@@ -354,6 +424,11 @@ public class WekaGui extends javax.swing.JFrame {
         jTextArea1.append(calculate.matrixString);
     }//GEN-LAST:event_jButton1ActionPerformed
 
+    private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton4ActionPerformed
+        System.out.println("filterstate= " + filterState);
+        filterState = false;
+        System.out.println("filterstate= " + filterState);
+    }//GEN-LAST:event_jButton4ActionPerformed
 
     public static String FileLocation;
     public static int fold_count;
@@ -369,25 +444,32 @@ public class WekaGui extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JRadioButton Rad_Bttn_CrossValidation;
+    public javax.swing.JRadioButton Rad_Bttn_CrossValidation;
     public javax.swing.JRadioButton Rad_Bttn_PercentageSplit;
     private javax.swing.JButton bttn_Visualiser;
     public javax.swing.ButtonGroup buttonGroup1;
-    private javax.swing.JButton jButton1;
+    private javax.swing.ButtonGroup buttonGroup2;
+    private javax.swing.JComboBox<String> combo_Filters;
+    public javax.swing.JButton jButton1;
     private javax.swing.JButton jButton2;
     private javax.swing.JButton jButton3;
-    private javax.swing.JComboBox<String> jComboBox1;
+    private javax.swing.JButton jButton4;
+    public javax.swing.JComboBox<String> jComboBox1;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
+    private javax.swing.JLabel jLabel6;
+    private javax.swing.JLabel jLabel7;
     private javax.swing.JPanel jPanel1;
-    private javax.swing.JPanel jPanel2;
-    private javax.swing.JScrollPane jScrollPane1;
+    public javax.swing.JPanel jPanel2;
+    public javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JScrollPane jScrollPane2;
     public javax.swing.JTabbedPane jTabbedPane1;
-    private javax.swing.JTextArea jTextArea1;
+    public javax.swing.JTextArea jTextArea1;
+    public javax.swing.JList<String> list_Attributes;
     private javax.swing.JFormattedTextField txt_formatted_folds;
-    private javax.swing.JFormattedTextField txt_formatted_perSplit;
+    public javax.swing.JFormattedTextField txt_formatted_perSplit;
     // End of variables declaration//GEN-END:variables
 }
