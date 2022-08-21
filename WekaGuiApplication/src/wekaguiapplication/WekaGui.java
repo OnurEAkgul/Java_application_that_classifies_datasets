@@ -314,7 +314,7 @@ public class WekaGui extends javax.swing.JFrame {
             FileLocation = fileChoose.getSelectedFile().getAbsolutePath();
             System.out.println(FileLocation);
 
-            FileLocation = ("milknew.arff");
+//            FileLocation = ("milknew.arff");
 
         }
 

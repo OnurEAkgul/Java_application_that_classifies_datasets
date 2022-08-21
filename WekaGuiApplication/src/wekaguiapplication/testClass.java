@@ -22,7 +22,10 @@ import weka.classifiers.trees.RandomTree;
 import weka.classifiers.trees.RandomForest;
 import weka.classifiers.trees.REPTree;
 import weka.classifiers.trees.LMT;
+import weka.core.Instance;
 import weka.core.Utils;
+import weka.gui.treevisualizer.PlaceNode2;
+import weka.gui.treevisualizer.TreeVisualizer;
 import weka.gui.visualize.PlotData2D;
 import weka.gui.visualize.ThresholdVisualizePanel;
 
@@ -62,7 +65,7 @@ public class testClass {
         Instances dataSet = source.getDataSet();
 
         dataSet.randomize(new java.util.Random(0));
-        
+
         int trainSize = (int) Math.round(dataSet.numInstances() * 0.66);
 
         int testSize = dataSet.numInstances() - trainSize;
@@ -74,7 +77,7 @@ public class testClass {
         dataSet.setClassIndex(dataSet.numAttributes() - 1);
         test.setClassIndex(test.numAttributes() - 1);
         train.setClassIndex(test.numAttributes() - 1);
-        
+
         RandomForest RF = new RandomForest();
 
         AttributeSelection atrSelect = new AttributeSelection();
@@ -101,7 +104,21 @@ public class testClass {
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
 
-        /*DataSource source = new DataSource("milknew.arff");
+        /* final javax.swing.JFrame jf = new javax.swing.JFrame("Weka Classifier Tree Visualizer: J48");
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        TreeVisualizer tv = new TreeVisualizer(null,FC.graph(),new PlaceNode2());
+        jf.getContentPane().add(tv, BorderLayout.CENTER);
+        jf.addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                jf.dispose();
+            }
+        });
+
+        jf.setVisible(true);
+        tv.fitToScreen();*/
+
+ /*DataSource source = new DataSource("milknew.arff");
         RandomForest RF = new RandomForest();
 
         Instances dataSet = source.getDataSet();
@@ -156,16 +173,15 @@ public class testClass {
         jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
          */
     }
+
     public void RFtesting() throws Exception {
 
-        
         DataSource source = new DataSource("milknew.arff");
         RandomForest RF = new RandomForest();
 
         Instances dataSet = source.getDataSet();
 
 //        dataSet.randomize(new java.util.Random(0));
-
         //Random rand = new Random(1);
         int trainSize = (int) Math.round(dataSet.numInstances() * 0.2);
 
@@ -188,8 +204,8 @@ public class testClass {
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
-         
- /* nameString = RF.toString();
+
+        /* nameString = RF.toString();
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();
         matrixString = eval.toMatrixString();*/
@@ -233,19 +249,48 @@ public class testClass {
         Instances test = new Instances(dataSet, trainSize, testSize);
 
         test.setClassIndex(test.numAttributes() - 1);
+        train.setClassIndex(test.numAttributes() - 1);
 
-        RT.buildClassifier(test);
+        RT.buildClassifier(train);
 
-        Evaluation eval = new Evaluation(test);
+        Evaluation eval = new Evaluation(train);
 
         eval.evaluateModel(RT, test);
 
+        System.out.println("PREDICTIONSSSSS");
+        System.out.println();
         System.out.println(eval.toSummaryString("=== Summary ===\n", false));
         System.out.println(eval.toClassDetailsString());
         System.out.println("----------------------------------------------");
         System.out.println(eval.toMatrixString());
         System.out.println("----------------------------------------------");
 
+        System.out.println("===================");
+        
+        System.out.println("# - actual - predicted - distribution");
+        for (int i = 0; i < test.numInstances(); i++) {
+            double pred = RT.classifyInstance(test.instance(i));
+            double[] dist = RT.distributionForInstance(test.instance(i));
+            System.out.print((i + 1) + " , ");
+            System.out.print(test.instance(i).toString(test.classIndex()) + " , ");
+            System.out.print(test.classAttribute().value((int) pred) + " , ");
+            System.out.println(Utils.arrayToString(dist));
+           
+        }
+
+        final javax.swing.JFrame jf = new javax.swing.JFrame("Weka Classifier Tree Visualizer: J48");
+        jf.setSize(500, 400);
+        jf.getContentPane().setLayout(new BorderLayout());
+        TreeVisualizer tv = new TreeVisualizer(null, RT.graph(), new PlaceNode2());
+        jf.getContentPane().add(tv, BorderLayout.CENTER);
+        jf.addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                jf.dispose();
+            }
+        });
+
+        jf.setVisible(true);
+        tv.fitToScreen();
         /* nameString = RT.toString();
         summString = eval.toSummaryString("\n=== Summary ===\n", false);
         classString = eval.toClassDetailsString();

@@ -19,14 +19,14 @@ public class NewClass {
         testClass test = new testClass();
         EvaluationCalculating EC = new EvaluationCalculating();
 
-        test.RFFtesting();
+//        test.RFFtesting();
 //        test.getAttributes();
 //        test.RFtesting();
 //        test.BNtesting();
 //        test.J48testing();
 //        test.NBtesting();
 //        test.REPtesting();
-//        test.RTtesting();
+        test.RTtesting();
 //        test.LMTtesting();
 
 //        EC.RFTree();
